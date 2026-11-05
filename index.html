@@ -89,6 +89,9 @@ hr{border:0;border-top:1px solid var(--line);opacity:.4;margin:12px 0}
 #tools.on{display:block}
 #tools .row{margin:4px 0}
 #tools textarea{height:44px}
+#lockrow{display:none}
+#tools.locked>*:not(#lockrow){display:none!important}
+#tools.locked #lockrow{display:flex}
 </style>
 </head>
 <body>
@@ -96,6 +99,7 @@ hr{border:0;border-top:1px solid var(--line);opacity:.4;margin:12px 0}
 <button id="gear" aria-label="Settings">⚙</button><button class="fb" id="undo" style="left:36px" aria-label="Undo">↶</button><button class="fb" id="redo" style="left:68px" aria-label="Redo">↷</button><button class="fb" id="eye" style="left:100px" aria-label="View mode">👁</button>
 
 <div id="tools">
+  <div class="row" id="lockrow"><span>🔒 Locked</span><span><button class="btn" id="unlock">Unlock</button> <button class="btn" id="ldone">Done</button></span></div>
   <textarea id="txt" placeholder="Text. Start a line with [ ] to make a checkbox." spellcheck="false"></textarea>
   <div class="row" id="swc" style="justify-content:flex-start;gap:6px"></div>
   <div class="row" id="rowP"><label id="lblP">Paper</label><input type="color" data-ic="col"><input type="text" class="hex" data-ih="col" maxlength="7" aria-label="Hex"><input type="range" class="op" data-ia="colA" min="0" max="100" aria-label="Opacity"></div>
@@ -150,7 +154,7 @@ hr{border:0;border-top:1px solid var(--line);opacity:.4;margin:12px 0}
   <div class="row"><input type="text" id="emoji" class="hex" maxlength="4" placeholder="🌸"><button class="btn" id="aEmoji">Add emoji sticker</button></div>
   <div class="row"><label>Shapes</label><button class="btn" data-shape="heart">♥ Heart</button><button class="btn" data-shape="star">★ Star</button><button class="btn" data-shape="circle">● Circle</button><button class="btn" data-shape="square">■ Square</button><button class="btn" data-shape="flower">✿ Flower</button></div>
   <div class="row"><label>Tap an emoji to add it</label></div><div id="emo" class="row" style="justify-content:flex-start;gap:0"></div>
-  <p style="font-size:12px;opacity:.7;margin:4px 0">Drag items to move them. Use the corner handles to resize, tilt or edit. Tap the board itself to change its look and size.</p>
+  <p style="font-size:12px;opacity:.7;margin:4px 0">Drag items to move them. Use the corner handles to resize, tilt or edit. Tap the board itself to change its look and size. Tap a locked item to unlock it.</p>
   <h3>Draw</h3><div class="row"><button class="btn" id="doodle">✎ Doodle pen</button><button class="btn" id="dclear">Clear doodles</button></div>
   <h3>Start from a template</h3><div class="row"><button class="btn" data-tpl="week">Weekly planner</button><button class="btn" data-tpl="todo">To-do wall</button><button class="btn" data-tpl="cute">Cute wall</button></div>
   <h3>View</h3><div class="row"><label for="viewm">View mode (hides handles and locks everything)</label><input type="checkbox" id="viewm"></div>
@@ -238,12 +242,19 @@ function render(){
       else{t.style.backgroundColor=col;const pt={stripe:'repeating-linear-gradient(45deg,rgba(255,255,255,.55) 0 4px,transparent 4px 8px)',dots:'radial-gradient(rgba(255,255,255,.75) 1.5px,transparent 2px)',check:'conic-gradient(rgba(255,255,255,.5) 25%,transparent 0 50%,rgba(255,255,255,.5) 0 75%,transparent 0)'}[it.tps];if(pt){t.style.backgroundImage=pt;t.style.backgroundSize=it.tps==='dots'?'7px 7px':it.tps==='check'?'8px 8px':'auto'}}
       d.appendChild(t)}}
     const lk=it.lock||S.view;
-    if(!S.view)for(const [c,ch] of (it.lock?[['ed','🔒']]:[['rz',''],['rt','↻'],['ed','✎']])){const h=document.createElement('div');h.className='h '+c;h.textContent=ch;d.appendChild(h)}
+    /* locked items show no handles at all */
+    if(!S.view&&!it.lock)for(const [c,ch] of [['rz',''],['rt','↻'],['ed','✎']]){const h=document.createElement('div');h.className='h '+c;h.textContent=ch;d.appendChild(h)}
     if(it.due){const st=dueState(it.due),bd=document.createElement('div');bd.className='due '+st.k;bd.textContent=st.t;d.appendChild(bd);d.style.setProperty('--r',it.rot+'deg');if((st.k==='over'||st.k==='today')&&it.id!==sel)d.classList.add('wig')}
     d.onpointerdown=e=>{
       const h=e.target.closest('.h'),mode=h?h.className.split(' ')[1]:'mv';
       if(mode==='ed'){e.preventDefault();e.stopPropagation();sel=it.id;$('bbar').classList.remove('on');render();tools();return}
-      if(lk){e.stopPropagation();const bx=e.target.closest('.bx');if(bx&&it.t==='note'){e.preventDefault();toggleLine(it,+bx.dataset.line);save();render()}return}
+      if(lk){
+        e.stopPropagation();
+        const bx=e.target.closest('.bx');
+        if(bx&&it.t==='note'){e.preventDefault();toggleLine(it,+bx.dataset.line);save();render();return}
+        /* tapping a locked item (outside view mode) opens the unlock panel */
+        if(it.lock&&!S.view){e.preventDefault();sel=it.id;$('bbar').classList.remove('on');render();tools()}
+        return}
       e.preventDefault();e.stopPropagation();d.classList.remove('wig');
       it.z=++zc;d.style.zIndex=it.z;
       const r=b.getBoundingClientRect(),sx=e.clientX,sy=e.clientY,o={x:it.x,y:it.y,w:it.w,h:it.h,rot:it.rot};
@@ -270,6 +281,7 @@ function render(){
 }
 function tools(){
   const it=cur();$('tools').classList.toggle('on',!!it);if(!it)return;
+  $('tools').classList.toggle('locked',!!it.lock);
   const txtOk=!(it.t==='pin'||(it.t==='sticker'&&it.img));
   $('txt').style.display=txtOk&&it.t!=='shape'?'block':'none';$('txt').value=it.text||'';
   $('tf').style.display=(it.t==='note'||it.t==='polaroid')?'':'none';$('tf').value=it.font||'Caveat';
@@ -308,6 +320,8 @@ $('tf').onchange=e=>{const it=cur();if(it){it.font=e.target.value;save();render(
 $('tfront').onclick=()=>{const it=cur();if(it){it.z=++zc;save();render()}};
 $('tdel').onclick=()=>{pushH();S.items=S.items.filter(i=>i.id!==sel);sel=null;save();render();tools();sync()};
 $('tdone').onclick=()=>{sel=null;render();tools()};
+$('ldone').onclick=()=>{sel=null;render();tools()};
+$('unlock').onclick=()=>{const it=cur();if(it){pushH();it.lock=false;save();render();tools()}};
 document.querySelectorAll('[data-ic]').forEach(el=>el.oninput=e=>{const it=cur();if(it){it[el.dataset.ic]=e.target.value;save();render();tools()}});
 document.querySelectorAll('[data-ia]').forEach(el=>el.oninput=e=>{const it=cur();if(it){it[el.dataset.ia]=+e.target.value;save();render()}});
 document.querySelectorAll('[data-ih]').forEach(el=>el.oninput=e=>{let v=e.target.value.trim();if(v&&v[0]!=='#')v='#'+v;const it=cur();if(it&&/^#[0-9a-f]{6}$/i.test(v)){it[el.dataset.ih]=v;save();render();document.querySelector(`[data-ic=${el.dataset.ih}]`).value=v}});
@@ -343,7 +357,8 @@ for(const [id,k] of [['fb','fb'],['fi','fi']])$(id).onchange=e=>{const it=cur();
 PAL.forEach(c=>{const b=document.createElement('button');b.style.background=c;b.setAttribute('aria-label',c);b.onclick=()=>{const it=cur();if(it){it.col=c;it.colA=100;save();render();tools()}};$('swc').appendChild(b)});
 document.querySelectorAll('[data-shape]').forEach(b=>b.onclick=()=>add('shape',{shape:b.dataset.shape,w:70,h:70,rot:0,col:PAL[1+Math.floor(Math.random()*5)],ink:'#fff3b0'}));
 '🌸 🌷 🌹 🌼 🌻 🪻 🍀 🌿 🍓 🍒 🍑 🍎 🍋 🍰 🧁 🍪 🍩 🍵 ☕ 🧸 🎀 🎧 🎵 📷 📚 ✏️ 📌 📎 ⭐ ✨ 💫 🌙 ☀️ 🌈 ☁️ 🦋 🐰 🐱 🐶 🐻 🐸 🦢 💌 💖 💗 💝 🔔 📝 ✅ ❤️ 🧿 🪩 🎞️ 🎟️ 🧷 🫧'.split(' ').forEach(em=>{const b=document.createElement('button');b.textContent=em;b.onclick=()=>add('sticker',{text:em,w:56,h:56,rot:0});$('emo').appendChild(b)});
-$('lk').onchange=e=>{const it=cur();if(it){pushH();it.lock=e.target.checked;save();render()}};
+/* locking hides the item's handles and closes the tools; tap the item again to unlock */
+$('lk').onchange=e=>{const it=cur();if(it){pushH();it.lock=e.target.checked;if(it.lock)sel=null;save();render();tools()}};
 $('due').onchange=e=>{const it=cur();if(it){it.due=e.target.value;save();render()}};
 $('dueX').onclick=()=>{const it=cur();if(it){delete it.due;$('due').value='';save();render()}};
 $('tdup').onclick=()=>{const it=cur();if(it){pushH();const c=JSON.parse(JSON.stringify(it));c.id=Date.now()+Math.random();c.x=Math.min(95,c.x+4);c.y=Math.min(95,c.y+5);c.z=++zc;delete c.lock;S.items.push(c);sel=c.id;save();render();tools()}};
