@@ -183,7 +183,7 @@ const cur=()=>S.items.find(i=>i.id===sel);
 $('tf').innerHTML=Object.entries(FONTS).map(([l,f])=>`<option value="${f}">${l}</option>`).join('');
 $('colors').innerHTML=COLORS.map(([k,l])=>`<div class="row"><label>${l}</label><input type="color" data-c="${k}"><input type="text" class="hex" data-h="${k}" maxlength="7" aria-label="${l} hex"><input type="range" class="op" data-a="${k}" min="0" max="100" aria-label="${l} opacity"></div>`).join('');
 
-function compress(f,max,cb){const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,max/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.72))};im.src=fr.result};fr.readAsDataURL(f)}
+function compress(f,max,cb){const fr=new FileReader();fr.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,max/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);const jpg=/jpe?g/i.test(f.type);cb(jpg?c.toDataURL('image/jpeg',.72):c.toDataURL('image/webp',.8))};im.src=fr.result};fr.readAsDataURL(f)}
 
 function applyBoard(){
   const r=document.documentElement.style;
